@@ -7,83 +7,34 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'bean/init_result_info.dart';
-import 'bean/upgrade_info.dart';
 
 class FlutterBugly {
   FlutterBugly._();
 
+  static bool _postCaught = false;
   static const MethodChannel _channel = MethodChannel(
     'crazecoder/flutter_bugly',
   );
-
-  static final StreamController<UpgradeInfo> _onCheckUpgrade =
-      StreamController<UpgradeInfo>.broadcast();
-
-  static int _checkUpgradeCount = 0;
-  static int _count = 0;
-  static bool _postCaught = false;
 
   /// 初始化
   static Future<InitResultInfo> init({
     String? androidAppId,
     String? iOSAppId,
     String? channel, // 自定义渠道标识
-    bool autoCheckUpgrade = true,
-    bool autoInit = true,
-    bool autoDownloadOnWifi = false,
-    bool enableHotfix = false,
-    bool enableNotification = false, // 未适配 androidx
-    bool showInterruptedStrategy = true, // 设置开启显示打断策略
-    bool canShowApkInfo = true, // 设置是否显示弹窗中的 apk 信息
-    int initDelay = 0, // 延迟初始化，单位秒
-    int upgradeCheckPeriod = 0, //升级检查周期设置，单位秒
-    int checkUpgradeCount = 1, // UpgradeInfo 为 null 时，再次 check 的次数，经测试 1 为最佳
-    bool customUpgrade = true,
-    List<String>? canShowUpgradeActs, // 添加可显示弹窗的Activity
-    // 是否自定义升级，这里默认 true 为了兼容老版本
   }) async {
     assert(
       (Platform.isAndroid && androidAppId != null) ||
           (Platform.isIOS && iOSAppId != null),
     );
     assert(_postCaught, 'Run postCatchedException first.');
-    _channel.setMethodCallHandler(_handleMessages);
-    _checkUpgradeCount = checkUpgradeCount;
     Map<String, Object?> map = {
       "appId": Platform.isAndroid ? androidAppId : iOSAppId,
       "channel": channel,
-      "autoCheckUpgrade": autoCheckUpgrade,
-      "autoDownloadOnWifi": autoDownloadOnWifi,
-      "enableHotfix": enableHotfix,
-      "enableNotification": enableNotification,
-      "showInterruptedStrategy": showInterruptedStrategy,
-      "canShowApkInfo": canShowApkInfo,
-      "initDelay": initDelay,
-      "upgradeCheckPeriod": upgradeCheckPeriod,
-      "customUpgrade": customUpgrade,
-      if (canShowUpgradeActs != null) 'canShowUpgradeActs': canShowUpgradeActs,
     };
     final dynamic result = await _channel.invokeMethod('initBugly', map);
     Map resultMap = json.decode(result);
     var resultBean = InitResultInfo.fromJson(resultMap as Map<String, dynamic>);
     return resultBean;
-  }
-
-  static Future<Null> _handleMessages(MethodCall call) async {
-    switch (call.method) {
-      case 'onCheckUpgrade':
-        UpgradeInfo? _info = _decodeUpgradeInfo(call.arguments["upgradeInfo"]);
-        if (_info != null && _info.apkUrl != null) {
-          _count = 0;
-          _onCheckUpgrade.add(_info);
-        } else {
-          if (_count < _checkUpgradeCount) {
-            _count++;
-            checkUpgrade(isManual: false);
-          }
-        }
-        break;
-    }
   }
 
   /// 自定义渠道标识，Android 专用
@@ -114,27 +65,6 @@ class FlutterBugly {
     assert(value.isNotEmpty);
     Map<String, Object> map = {"key": key, "value": value};
     await _channel.invokeMethod('putUserData', map);
-  }
-
-  ///获取本地更新策略，即上次未更新的策略
-  static Future<UpgradeInfo?> getUpgradeInfo() async {
-    final String? result = await _channel.invokeMethod('getUpgradeInfo');
-    var info = _decodeUpgradeInfo(result);
-    return info;
-  }
-
-  /// 检查更新，返回更新策略信息
-  static Future<Null> checkUpgrade({
-    bool isManual = true,
-    bool isSilence = false,
-  }) async {
-    if (!Platform.isAndroid) return null;
-    if (isManual) _count = 0;
-    Map<String, Object> map = {
-      "isManual": isManual, // 用户手动点击检查，非用户点击操作请传 false
-      "isSilence": isSilence, // 是否显示弹窗等交互，[true:没有弹窗和toast] [false:有弹窗或toast]
-    };
-    await _channel.invokeMethod('checkUpgrade', map);
   }
 
   /// 异常上报。该方法等同于 [runZonedGuarded]。
@@ -252,18 +182,7 @@ class FlutterBugly {
     await _channel.invokeMethod('postCatchedException', map);
   }
 
-  static UpgradeInfo? _decodeUpgradeInfo(String? jsonStr) {
-    if (jsonStr == null || jsonStr.isEmpty) return null;
-    Map resultMap = json.decode(jsonStr);
-    var info = UpgradeInfo.fromJson(resultMap as Map<String, dynamic>);
-    return info;
-  }
-
-  static Stream<UpgradeInfo> get onCheckUpgrade => _onCheckUpgrade.stream;
-
   static void dispose() {
-    _count = 0;
-    _onCheckUpgrade.close();
     _postCaught = false;
   }
 }
