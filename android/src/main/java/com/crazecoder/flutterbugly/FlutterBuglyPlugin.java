@@ -145,17 +145,4 @@ public class FlutterBuglyPlugin implements FlutterPlugin, MethodCallHandler {
         channel.setMethodCallHandler(this);
         applicationContext = context;
     }
-
-    private List<Class<? extends Activity>> forNameActivity(List<String> acts) {
-        if (acts == null || acts.isEmpty()) return null;
-        final List<Class<? extends Activity>> classList = new ArrayList<>();
-        for (String act : acts) {
-            try {
-                classList.add((Class<? extends Activity>) Class.forName(act));
-            } catch (ClassNotFoundException e) {
-                e.printStackTrace();
-            }
-        }
-        return classList;
-    }
 }
