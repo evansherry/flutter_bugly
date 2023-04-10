@@ -79,8 +79,14 @@ class FlutterBugly {
     String? filterRegExp,
     bool debugUpload = false,
   }) {
-    bool _isDebug = false;
-    assert(_isDebug = true);
+    // 调试模式，使用debugUpload来控制
+    bool uploadCatch;
+    if (!kReleaseMode) {
+      uploadCatch = debugUpload;
+    } else {
+      uploadCatch = true;
+    }
+
     Isolate.current.addErrorListener(new RawReceivePort((dynamic pair) {
       var isolateError = pair as List<dynamic>;
       var _error = isolateError.first;
@@ -102,8 +108,7 @@ class FlutterBugly {
       callback();
     }, (error, stackTrace) {
       _filterAndUploadException(
-        debugUpload,
-        _isDebug,
+        uploadCatch,
         onException,
         filterRegExp,
         FlutterErrorDetails(exception: error, stack: stackTrace),
@@ -121,15 +126,13 @@ class FlutterBugly {
   }
 
   static void _filterAndUploadException(
-    debugUpload,
-    _isDebug,
+    upload,
     handler,
     filterRegExp,
     FlutterErrorDetails details,
   ) {
     if (!_filterException(
-      debugUpload,
-      _isDebug,
+      upload,
       handler,
       filterRegExp,
       details,
@@ -141,8 +144,7 @@ class FlutterBugly {
   }
 
   static bool _filterException(
-    bool debugUpload,
-    bool _isDebug,
+    bool upload,
     FlutterExceptionHandler? handler,
     String? filterRegExp,
     FlutterErrorDetails details,
@@ -152,8 +154,8 @@ class FlutterBugly {
     } else {
       FlutterError.onError?.call(details);
     }
-    // Debug 时默认不上传异常。
-    if (!debugUpload && _isDebug) {
+    // 是否上传异常。
+    if (!upload) {
       return true;
     }
     // 异常过滤。
